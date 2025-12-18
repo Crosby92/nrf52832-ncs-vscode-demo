@@ -1,0 +1,73 @@
+/dts-v1/;
+#include <nordic/nrf52832_qfaa.dtsi>
+#include "nrf52832wtkj-pinctrl.dtsi"
+
+/ {
+	model = "The core development board based on NRF52832 developed by our company";
+	compatible = "wtkj,nrf52832wtkj";
+
+	chosen {
+		zephyr,sram = &sram0;
+		zephyr,flash = &flash0;
+		zephyr,code-partition = &slot0_partition;
+		zephyr,console =  &uart0;
+		zephyr,shell-uart =  &uart0;
+		zephyr,uart-mcumgr = &uart0;
+	};
+	leds{
+		compatible = "gpio-leds";
+		led_0: led_0 {
+			gpios = <&gpio0 11 GPIO_ACTIVE_LOW>;
+		};
+	};
+	aliases {
+		led0=&led_0;
+	};
+};
+
+&flash0 {
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		boot_partition: partition@0 {
+			label = "mcuboot";
+			reg = <0x00000000 DT_SIZE_K(48)>;
+		};
+
+		slot0_partition: partition@c000 {
+			label = "image-0";
+			reg = <0x0000c000 DT_SIZE_K(220)>;
+		};
+
+		slot1_partition: partition@43000 {
+			label = "image-1";
+			reg = <0x00043000 DT_SIZE_K(220)>;
+		};
+
+		storage_partition: partition@7a000 {
+			label = "storage";
+			reg = <0x0007a000 DT_SIZE_K(24)>;
+		};
+	};
+};
+&uart0 {
+	status = "okay";
+	pinctrl-0 = <&uart0_default>;
+	pinctrl-1 = <&uart0_sleep>;
+	pinctrl-names = "default", "sleep";
+	current-speed = <115200>;
+};
+
+&gpio0 {
+	status = "okay";
+};
+
+&gpiote {
+	status = "okay";
+};
+
+
+
+

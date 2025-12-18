@@ -1,0 +1,5 @@
+board:
+  name: nrf52840wtkj
+  vendor: wtkj
+  socs:
+    - name: nrf52840

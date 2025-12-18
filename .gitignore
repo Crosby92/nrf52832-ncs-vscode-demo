@@ -1,0 +1,21 @@
+# --- Zephyr/NCS Build Artifacts (绝对不能上传) ---
+build/
+build_*/
+.west/
+
+# --- VS Code Local Settings (视情况而定) ---
+# .vscode/ 文件夹通常建议上传，但要把里面含绝对路径的文件忽略
+.vscode/c_cpp_properties.json
+.vscode/ipch/
+
+# --- Python & Temporary files ---
+__pycache__/
+*.py[cod]
+*.swp
+*.log
+
+# --- MCU binary files (如果你不想保存历史固件) ---
+*.hex
+*.bin
+*.elf
+*.map

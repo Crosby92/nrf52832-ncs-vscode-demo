@@ -1,0 +1,10 @@
+identifier: nrf52832wtkj/nrf52832
+name: The core development board based on NRF52832 developed by our company
+vendor: wtkj
+type: mcu
+arch: arm
+ram: 64
+flash: 512
+toolchain:
+  - zephyr
+supported: []
