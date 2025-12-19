@@ -2,11 +2,15 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/settings/settings.h>
+#include <zephyr/drivers/hwinfo.h>
 
 #include "gatt_svc.h"      /* 获取 UUID */
 #include "bt_conn_ctrl.h"  /* 获取安全初始化函数 */
+#include "main.h"
 
 LOG_MODULE_REGISTER(main, LOG_LEVEL_INF);
+
+uint8_t chipId[3] = {0};
 
 /* 广播数据定义 */
 static struct bt_data ad[] = {
@@ -36,38 +40,63 @@ void bt_advertise_start(void)
     }
 }
 
-/* 蓝牙底层初始化 */
-void bt_init_start(void)
+/**
+ * @brief 蓝牙就绪回调函数
+ * @details 此函数在 bt_enable() 内部被调用，是设置初始 MAC 地址的最佳时机。
+ */
+static void bt_ready(int err)
 {
-    int err = bt_enable(NULL);
     if (err) {
-        LOG_ERR("Init failed (err %d)", err);
+        LOG_ERR("Bluetooth init failed (err %d)", err);
         return;
     }
-    LOG_INF("Bluetooth initialized");
+    LOG_INF("Bluetooth initialized successfully.");
 
+    // 1. 立即检查并设置 MAC 地址，抢在 SDC 自动生成之前
+    size_t id_count = 0;
+    bt_id_get(NULL, &id_count);
+
+    if (id_count == 0) {
+        LOG_INF("No identity found, creating a new fixed MAC address.");
+
+        bt_addr_le_t custom_addr = {
+            .type = BT_ADDR_LE_RANDOM,
+            .a = { .val = {BL_MAC_ADDR_5, BL_MAC_ADDR_4, BL_MAC_ADDR_3, BL_MAC_ADDR_2, BL_MAC_ADDR_1, BL_MAC_ADDR_0} }
+        };
+        custom_addr.a.val[5] |= 0xC0;
+
+        err = bt_id_create(&custom_addr, NULL);
+        if (err < 0) {
+            LOG_ERR("Failed to create fixed MAC address (err %d)", err);
+        } else {
+            char addr_str[BT_ADDR_LE_STR_LEN];
+            bt_addr_le_to_str(&custom_addr, addr_str, sizeof(addr_str));
+            LOG_INF("Successfully set MAC address to: %s", addr_str);
+        }
+    } else {
+        LOG_WRN("An identity already exists, skipping custom MAC creation.");
+    }
+    hwinfo_get_device_id(chipId, sizeof(chipId));
+    LOG_INF("Chip ID: %02X:%02X:%02X", chipId[0], chipId[1], chipId[2]);
+
+    // 2. 在设置完地址后，再加载其他设置 (如绑定信息)
     if (IS_ENABLED(CONFIG_BT_SETTINGS)) {
         settings_load();
-        
-        /* 首次启动检查并创建 Identity */
-        size_t id_count = 0;
-        bt_id_get(NULL, &id_count);
-        if (id_count == 0) {
-            LOG_WRN("Creating new ID");
-            bt_id_create(NULL, NULL);
-        }
+        LOG_INF("Settings loaded.");
     }
-}
 
-int main(void)
-{
-    bt_init_start();
-
+    // 3. 安全初始化
     if (app_setup_security() != 0) {
         LOG_ERR("Security setup failed");
     }
 
+    // 4. 在所有初始化完成后，开始广播
     bt_advertise_start();
+}
+
+int main(void)
+{
+    bt_enable(bt_ready);
 
     LOG_INF("Main loop running");
     return 0;

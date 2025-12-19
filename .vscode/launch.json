@@ -1,0 +1,12 @@
+{
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"type": "nrf-connect",
+			"request": "launch",
+			"name": "Launch nrf52832-ncs-vscode-demo",
+			"config": "${workspaceFolder}/build/nrf52832-ncs-vscode-demo",
+			"runToEntryPoint": "main"
+		}
+	]
+}

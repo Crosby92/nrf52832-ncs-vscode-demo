@@ -1,0 +1,5 @@
+{
+    "nrf-connect.debugging.bindings": {
+        "${workspaceFolder}/build/nrf52832-ncs-vscode-demo": "Launch nrf52832-ncs-vscode-demo"
+    }
+}

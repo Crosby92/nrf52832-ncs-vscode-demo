@@ -1,4 +1,5 @@
 #include "gatt_svc.h"
+#include "param_parse_pack.h"
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/bluetooth/bluetooth.h>
@@ -7,7 +8,7 @@
 LOG_MODULE_REGISTER(gatt, LOG_LEVEL_INF);
 
 /* UUID 定义 */
-struct bt_uuid_16 adv_uuid = BT_UUID_INIT_16(0xFEEF);
+struct bt_uuid_16 adv_uuid = BT_UUID_INIT_16(0x1812);
 static struct bt_uuid_16 service_uuid = BT_UUID_INIT_16(0xFEE7);
 static struct bt_uuid_16 write_chrc_uuid = BT_UUID_INIT_16(0xFEC7);
 static struct bt_uuid_16 notify_chrc_uuid = BT_UUID_INIT_16(0xFEC8);
@@ -42,7 +43,7 @@ BT_GATT_SERVICE_DEFINE(my_service,
 
 /**
  * @brief 函数名：write_fec7_cb
- * 
+ *
  * @details GATT 写特征 (Write Characteristic) 回调函数。
  *          当手机 (Client) 向 UUID 0xFEC7 写入数据时，蓝牙协议栈会自动调用此函数。
  *          本函数将接收到的数据存储到 shared_data_buffer，并根据 notify 状态决定是否回显数据。
@@ -61,29 +62,63 @@ BT_GATT_SERVICE_DEFINE(my_service,
 static ssize_t write_fec7_cb(struct bt_conn *conn, const struct bt_gatt_attr *attr,
                              const void *buf, uint16_t len, uint16_t offset, uint8_t flags)
 {
-    LOG_INF("Write received, len: %u", len);
+    LOG_INF("GATT Write received on 0xFEC7, len: %u", len);
+    LOG_HEXDUMP_INF(buf, len, "Received Data:");
 
-    // 检查偏移量是否越界
-    if (offset + len > sizeof(shared_data_buffer)) {
-        return BT_GATT_ERR(BT_ATT_ERR_INVALID_OFFSET);
+    // --- 这里是你的核心业务逻辑 ---
+    char dataIn[256] = {0};
+    unsigned char dataInLen = 0;
+    char dataOut[256] = {0};
+    unsigned char dataOutLen = 0;
+
+    if (len > sizeof(dataIn))
+    {
+        LOG_ERR("Incoming data too long!");
+        return BT_GATT_ERR(BT_ATT_ERR_INVALID_ATTRIBUTE_LEN);
     }
 
-    // 将数据复制到本地缓冲区
-    memcpy(shared_data_buffer + offset, buf, len);
-    LOG_HEXDUMP_INF(shared_data_buffer, len, "Data stored:");
+    dataInLen = len;
+    memcpy(dataIn, buf, dataInLen);
 
-    // 如果通知已启用，将写入的数据通过 Notify 特征 (0xFEC8) 发回给手机
-    if (is_notify_enabled) {
-        /* 注意：&my_service.attrs[4] 必须指向 Notify 特征的值属性 */
-        bt_gatt_notify(conn, &my_service.attrs[4], shared_data_buffer, len);
-        LOG_INF("Notify sent");
+    char result = param_parse(dataIn, dataInLen, dataOut, &dataOutLen);
+
+    if (result < 0)
+    {
+        LOG_ERR("param_parse failed with code: %d", result);
     }
-    return len;
+    else
+    {
+        if (dataOutLen > 0)
+        {
+            if (is_notify_enabled)
+            {
+                // 【关键】找到 Notify 特征值的句柄并发送
+                // 注意：这个索引值 [4] 需要根据 BT_GATT_SERVICE_DEFINE 的结构来确定
+                // 结构: [0]服务, [1]写Decl, [2]写Val, [3]Notify Decl, [4]Notify Val
+                int err = bt_gatt_notify(conn, &my_service.attrs[4], dataOut, dataOutLen);
+                if (err)
+                {
+                    LOG_ERR("bt_gatt_notify failed (err %d)", err);
+                }
+                else
+                {
+                    LOG_INF("Notification sent, len: %u", dataOutLen);
+                    LOG_HEXDUMP_INF(dataOut, dataOutLen, "Sent Data:");
+                }
+            }
+            else
+            {
+                LOG_WRN("Client has not enabled notifications, data dropped.");
+            }
+        }
+    }
+
+    return len; // 告诉协议栈已成功处理 len 字节
 }
 
 /**
  * @brief 函数名：read_fec9_cb
- * 
+ *
  * @details GATT 读特征 (Read Characteristic) 回调函数。
  *          当手机 (Client) 请求读取 UUID 0xFEC9 的值时，蓝牙协议栈调用此函数。
  *          本函数将本地的只读数据 (read_only_data) 返回给手机。
@@ -97,19 +132,19 @@ static ssize_t write_fec7_cb(struct bt_conn *conn, const struct bt_gatt_attr *at
  * @return ssize_t
  *         - 成功：返回读取的字节数。
  *         - 失败：返回负数错误码。
- *         - 注：bt_gatt_attr_read 是 Zephyr 提供的辅助函数，自动处理偏移和拷贝。
  */
 static ssize_t read_fec9_cb(struct bt_conn *conn, const struct bt_gatt_attr *attr,
                             void *buf, uint16_t len, uint16_t offset)
 {
-    LOG_INF("Read requested");
-    // 使用 Zephyr 标准帮助函数处理读取逻辑
-    return bt_gatt_attr_read(conn, attr, buf, len, offset, read_only_data, sizeof(read_only_data) - 1);
+    LOG_INF("GATT Read requested on 0xFEC9");
+    const char my_data[] = "\x11\x18\x19";
+    
+    return bt_gatt_attr_read(conn, attr, buf, len, offset, my_data, sizeof(my_data));
 }
 
 /**
  * @brief 函数名：ccc_fec8_cfg_changed_cb
- * 
+ *
  * @details CCCD (Client Characteristic Configuration Descriptor) 配置变更回调。
  *          当手机在 0xFEC8 特征上点击“开启通知”或“关闭通知”时调用。
  *          用于告知设备端是否允许发送 Notify 消息。
@@ -126,5 +161,5 @@ static void ccc_fec8_cfg_changed_cb(const struct bt_gatt_attr *attr, uint16_t va
 {
     // 更新全局标志位，判断是否开启了 Notify
     is_notify_enabled = (value == BT_GATT_CCC_NOTIFY);
-    LOG_INF("Notify state: %d", is_notify_enabled);
+    LOG_INF("Notification state has been changed by client: %s", is_notify_enabled ? "ENABLED" : "DISABLED");
 }

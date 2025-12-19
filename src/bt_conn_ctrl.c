@@ -180,6 +180,7 @@ static void auth_passkey_confirm(struct bt_conn *conn, unsigned int passkey)
     bt_conn_auth_passkey_confirm(conn); // 自动确认
 }
 
+#if 0
 static struct bt_conn_auth_cb auth_cb_display = {
     .cancel = auth_cancel,
     .pairing_confirm = auth_pairing_confirm, // 重要：自动确认配对请求
@@ -187,6 +188,15 @@ static struct bt_conn_auth_cb auth_cb_display = {
     .passkey_entry = auth_passkey_entry,
     .passkey_confirm = auth_passkey_confirm, 
 };
+#else
+static struct bt_conn_auth_cb auth_cb_display = {
+    .passkey_display = NULL,
+    .passkey_entry = NULL,
+    .passkey_confirm = NULL,
+    .pairing_confirm = NULL,
+    .cancel = NULL,
+};
+#endif
 
 
 /* =========================================================================

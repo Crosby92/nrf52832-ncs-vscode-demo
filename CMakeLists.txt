@@ -16,12 +16,14 @@ target_sources(app PRIVATE
   src/gatt_svc.c
   src/bt_conn_ctrl.c
   src/app_threads.c
+  src/param_parse_pack.c
 
   # head file
   inc/main.h
   inc/gatt_svc.h
   inc/bt_conn_ctrl.h
   inc/app_threads.h
+  inc/param_parse_pack.h
 )
 
 # NORDIC SDK APP END
